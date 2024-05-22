@@ -7,9 +7,6 @@ const multer = require('multer');
 const base64 = require('base-64');
 const mysql = require('mysql2');
 
-const base64String = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgA'; // Your base64 image string
-const base64Image = base64String.split(';base64,').pop();
-const pathe = './iman/kyo.jpg';
 
 fs.writeFile(pathe, base64Image, { encoding: 'base64' }, (err) => {
     if (err) {
@@ -19,25 +16,16 @@ fs.writeFile(pathe, base64Image, { encoding: 'base64' }, (err) => {
         console.log('Image file created successfully:', pathe);
     }
 });
-
+//esto es para decirle que los archivos que se envien en la api se cargen en memoria
 const storage = multer.memoryStorage();
-
-const storages = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, './temps') // Directorio donde se guardarán las imágenes
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname)) // Nombre del archivo en el servidor
-  }
-});
-const uploadd = multer({ storage: storages });
-
+//Aqui creamos el metodo para leer las imagenes
 const uploadd2 = multer({ storage: storage });
+// Configuración de multer para subir archivos
 
 const connection = mysql.createConnection({
   host: 'localhost',
   user: 'root',
-  password: 'Juan@20',
+ password: 'Juan@20',
   database: 'pruebas'
 });
 
@@ -52,30 +40,6 @@ connection.connect((err) => {
 
 const app = express();
 app.use(bodyParser.json());
-
-app.post('/upload/:id', uploadd2.single('image'), (req, res) => {
-  // Obtener la imagen en formato Base64
-  const imageBase64 = req.file.buffer.toString('base64');
-  const idusuario = req.params.id
-  // Guardar la imagen en la base de datos
-  const query = 'INSERT INTO imagenes (usuarioId,nombre, datos) VALUES (? ,?, ?)';
-  connection.query(query, [idusuario,req.file.originalname, imageBase64], (err, result) => {
-    if (err) {
-      console.error('Error al guardar la imagen en la base de datos:', err);
-      res.status(500).send('Error interno del servidor');
-      return;
-    }
-    console.log('Imagen guardada en la base de datos');
-    res.send('Imagen guardada exitosamente');
-  });
-});
-
-app.post('/agregarImagen', uploadd.single('inputFile'), async (req, res) => 
-  {
-
-    res.send('Imagen guardada exitosamente');
-  })
-
 
 
 // Conexión a la base de datos
@@ -140,23 +104,51 @@ const Imagen = sequelize.define('imagenes', {
   Imagen.belongsTo(Usuario);
 
 // Función para renderizar la imagen en base64
-function renderImagen(data) {
-  
-  return base64.encode(btoa(unescape(encodeURIComponent(data))));
-}
-function renderImagen2(data) {
-  if (data)
-    return base64.encode(btoa(unescape(encodeURIComponent(data))));
-  
-}
 
-
-
-// Configuración de multer para subir archivos
-const upload = multer();
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+//Aqui utilizamos nadamas una imagen con el metodo single OJO: dentro del metodo tiene que ir el nombre 
+//del campo donde va estar NO DE LA IMAGEN
+app.post('/upload/:id', uploadd2.single('image'), (req, res) => {
+  // Obtener la imagen en formato Base64
+  const imageBase64 = req.file.buffer.toString('base64');
+  const idusuario = req.params.id
+  // Guardar la imagen en la base de datos
+  const query = 'INSERT INTO imagenes (usuarioId,nombre, datos) VALUES (? ,?, ?)';
+  connection.query(query, [idusuario,req.file.originalname, imageBase64], (err, result) => {
+    if (err) {
+      console.error('Error al guardar la imagen en la base de datos:', err);
+      res.status(500).send('Error interno del servidor');
+      return;
+    }
+    console.log('Imagen guardada en la base de datos');
+    res.send('Imagen guardada exitosamente');
+  });
+});
+//lo mismo pero inidicamos que recibimos multiples (en este caso 3) cada con su nombre
+app.post('/uploadTodo/:id', uploadd2.fields([{ name: 'imagen1', maxCount: 1 }, { name: 'imagen2', maxCount: 1 },{name:'imagen3',maxCount: 1}]), function (req, res, next) {
+  const imagen1 = req.files['imagen1'][0].buffer.toString('base64');
+  const imagen2 = req.files['imagen2'][0].buffer.toString('base64');
+  const imagen3 = req.files['imagen3'][0].buffer.toString('base64');
+  const idusuario = req.params.id
+  const query = 'INSERT INTO imagenes (usuarioId,nombre, datos,datos1,datos2) VALUES (? ,?, ?, ?, ?)';
+  connection.query(query, [idusuario,"Producto", imagen1,imagen2,imagen3], (err, result) => {
+    if (err) {
+      console.error('Error al guardar la imagen en la base de datos:', err);
+      res.status(500).send('Error interno del servidor');
+      return;
+    }
+    console.log('Imagen guardada en la base de datos');
+    res.send('Imagen guardada exitosamente');
+  });
+
+
+
+  // req.body contendrá los campos de texto, si los hubiera
+})
+
+//este es para mostrar una imagen ya mapeada en base 64 (checar el archivo /views/imagen.ejs para ver como se recive )
 app.get('/imagen/:id', (req, res) => {
   // Consultar la imagen desde la base de datos
   const query = 'SELECT * FROM imagenes WHERE id = ?';
@@ -171,85 +163,20 @@ app.get('/imagen/:id', (req, res) => {
     res.render('imagen.ejs', { imagenBase64: results[0].datos });
   });
 });
-// Ruta para mostrar la imagen
-app.get('/displayimage', async (req, res) => {
-  try {
-    console.log(req.body.user_id)
-    const searchImage = await Imagen.findOne({ where: { usuarioId: req.body.user_id} });
-
-    console.log(searchImage)
-    if (searchImage) {
-      console.log(searchImage.nombre)
-      console.log(searchImage.datos); // Registro para imprimir los datos de la imagen
-      //let buff = new Buffer(searchImage.datos, 'base64');
-      const imageBase64 = renderImagen2(searchImage.datos);
-      // Renderizar la vista 'displayimage.ejs' y pasar la imagen en base64 a la plantilla
-      res.render('perfilusuario', { imagen: imageBase64 });
-    } else {
-      res.json({ message: 'no image' });
+// Ruta para mostrar las  3 imagen (consultar el archivo /views/imagentodas.ejs )
+app.get('/imagenTodas/:id', (req, res) => {
+  // Consultar la imagen desde la base de datos
+  const query = 'SELECT * FROM imagenes WHERE id = ?';
+  connection.query(query, [req.params.id], (err, results) => {
+    if (err) {
+      console.error('Error al consultar la imagen en la base de datos:', err);
+      res.status(500).send('Error interno del servidor');
+      return;
     }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-// Ruta para subir la imagen
-app.post('/uploadperfil/:id', upload.single('inputFile'), async (req, res) => {
-  try {
-    console.log(req.params.id)
-    console.log("chechpoint :D")
-    const usuario_idd = req.params.id; // Asegúrate de declarar esta variable con const
-    const searchImage = await Imagen.findOne({ where: { usuarioId: usuario_idd } });
-    const data = req.file.buffer;
-    const renderFile = renderImagen(data);
-
-    if (searchImage) {
-      searchImage.rendered_data = renderFile;
-      searchImage.data = data;
-      await searchImage.save();
-      res.json({ message: 'imagen actualizada' });
-    } else {
-      const newFile = new Imagen({
-        nombre: req.file.originalname,
-        datos: data,
-        usuarioId: usuario_idd, // Utiliza 'usuarioId' en lugar de 'usuario_id'
-      });
-      
-      await newFile.save();
-      res.json({ message: 'Imagen agregada' });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Ruta para actualizar la imagen en la base de datos
-app.put('/actualizar-imagen/:id', async (req, res) => {
-  const id = req.params.id;
-  const imagePath = 'ruta_a_tu_imagen.jpg'; // Ruta a tu imagen .jpg
-  
-  try {
-    // Leer el archivo de la imagen
-    const imageData = fs.readFileSync(imagePath);
-
-    // Buscar la imagen por ID
-    const image = await Image.findByPk(id);
-    if (!image) {
-      return res.status(404).send('Imagen no encontrada');
-    }
-
-    // Actualizar la imagen en la base de datos
-    image.filename = path.basename(imagePath);
-    image.data = imageData;
-    await image.save();
-
-    // Enviar una respuesta indicando que la imagen ha sido actualizada
-    res.send(`Imagen con ID ${id} actualizada correctamente.`);
-  } catch (error) {
-    console.error('Error al actualizar la imagen:', error);
-    res.status(500).send('Error interno del servidor');
-  }
+    console.log(results[0])
+    // Renderizar la plantilla EJS y pasar la imagen como variable en este caso son 3 se mandan como propiedad valor
+    res.render('imagentodas.ejs', { imagen1: results[0].datos,imagen2: results[0].datos1, imagen3 : results[0].datos2 });
+  });
 });
 
 // Iniciar el servidor
