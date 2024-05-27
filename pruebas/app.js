@@ -7,7 +7,7 @@ const multer = require('multer');
 const base64 = require('base-64');
 const mysql = require('mysql2');
 
-
+/*
 fs.writeFile(pathe, base64Image, { encoding: 'base64' }, (err) => {
     if (err) {
         console.error('Error writing the image file:', err);
@@ -15,19 +15,14 @@ fs.writeFile(pathe, base64Image, { encoding: 'base64' }, (err) => {
       console.log(base64Image)
         console.log('Image file created successfully:', pathe);
     }
-});
+});*/
 //esto es para decirle que los archivos que se envien en la api se cargen en memoria
 const storage = multer.memoryStorage();
 //Aqui creamos el metodo para leer las imagenes
 const uploadd2 = multer({ storage: storage });
 // Configuración de multer para subir archivos
 
-const connection = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
- password: 'Juan@20',
-  database: 'pruebas'
-});
+
 
 connection.connect((err) => {
   if (err) {
@@ -134,6 +129,27 @@ app.post('/uploadTodo/:id', uploadd2.fields([{ name: 'imagen1', maxCount: 1 }, {
   const idusuario = req.params.id
   const query = 'INSERT INTO imagenes (usuarioId,nombre, datos,datos1,datos2) VALUES (? ,?, ?, ?, ?)';
   connection.query(query, [idusuario,"Producto", imagen1,imagen2,imagen3], (err, result) => {
+    if (err) {
+      console.error('Error al guardar la imagen en la base de datos:', err);
+      res.status(500).send('Error interno del servidor');
+      return;
+    }
+    console.log('Imagen guardada en la base de datos');
+    res.send('Imagen guardada exitosamente');
+  });
+
+
+
+  // req.body contendrá los campos de texto, si los hubiera
+})
+
+app.post('/uploadRDS/:id', uploadd2.fields([{ name: 'imagen1', maxCount: 1 }, { name: 'imagen2', maxCount: 1 },{name:'imagen3',maxCount: 1}]), function (req, res, next) {
+  const imagen1 = req.files['imagen1'][0].buffer.toString('base64');
+  const imagen2 = req.files['imagen2'][0].buffer.toString('base64');
+  const imagen3 = req.files['imagen3'][0].buffer.toString('base64');
+  const idusuario = req.params.id
+  const query = 'CALL ModificarImagenes(?, ?, ?, ?)';
+  connection.query(query, [idusuario, imagen1,imagen2,imagen3], (err, result) => {
     if (err) {
       console.error('Error al guardar la imagen en la base de datos:', err);
       res.status(500).send('Error interno del servidor');
